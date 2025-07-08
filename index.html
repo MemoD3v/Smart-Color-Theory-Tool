@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Color Theory Tool</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0e0e11;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 20px;
+      font-weight: 400;
+    }
+
+    canvas {
+      border-radius: 50%;
+      margin: 20px 0;
+      transition: box-shadow 0.2s;
+    }
+
+    canvas:hover {
+      box-shadow: 0 0 20px #ffffff55;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    select {
+      background: #1a1a1d;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      margin: 0 10px;
+    }
+
+    .info-box {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .color-box {
+      width: 130px;
+      height: 130px;
+      border-radius: 12px;
+      box-shadow: 0 0 8px #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.2s;
+    }
+
+    .color-box:hover {
+      transform: scale(1.05);
+    }
+
+    .color-label {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      background: #222;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(-10px);
+    }
+
+    hr {
+      width: 80%;
+      border-color: #444;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Smart Color Theory Tool</h1>
+
+  <canvas id="wheelCanvas" width="400" height="400"></canvas>
+
+  <div class="controls">
+    <label for="mode">Palette type:</label>
+    <select id="mode">
+      <option value="complementary">Complementary</option>
+      <option value="analogous">Analogous</option>
+      <option value="triadic">Triadic</option>
+      <option value="tetradic">Tetradic</option>
+      <option value="split">Split Complementary</option>
+      <option value="monochromatic">Monochromatic</option>
+    </select>
+  </div>
+
+  <hr>
+
+  <div id="preview" class="info-box"></div>
+  <h2>Generated Palette</h2>
+  <div id="palette" class="info-box"></div>
+
+  <div id="toast" class="toast">Copied to clipboard!</div>
+
+  <script>
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+    const radius = canvas.width / 2;
+    const mode = document.getElementById("mode");
+    const toast = document.getElementById("toast");
+
+    function drawColorWheel() {
+      for (let i = 0; i < 360; i++) {
+        ctx.beginPath();
+        ctx.moveTo(radius, radius);
+        ctx.arc(radius, radius, radius, (i - 1) * Math.PI / 180, i * Math.PI / 180);
+        ctx.closePath();
+        ctx.fillStyle = `hsl(${i}, 100%, 50%)`;
+        ctx.fill();
+      }
+    }
+
+    function hslToHex(h, s, l) {
+      s /= 100;
+      l /= 100;
+      let c = (1 - Math.abs(2 * l - 1)) * s;
+      let x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      let m = l - c / 2;
+      let [r, g, b] = h < 60 ? [c, x, 0] :
+                     h < 120 ? [x, c, 0] :
+                     h < 180 ? [0, c, x] :
+                     h < 240 ? [0, x, c] :
+                     h < 300 ? [x, 0, c] : [c, 0, x];
+
+      return "#" + [r, g, b].map(v => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join('');
+    }
+
+    function hslToRgbStr(h, s, l) {
+      s /= 100;
+      l /= 100;
+      let c = (1 - Math.abs(2 * l - 1)) * s;
+      let x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      let m = l - c / 2;
+      let [r, g, b] = h < 60 ? [c, x, 0] :
+                     h < 120 ? [x, c, 0] :
+                     h < 180 ? [0, c, x] :
+                     h < 240 ? [0, x, c] :
+                     h < 300 ? [x, 0, c] : [c, 0, x];
+
+      return `rgb(${Math.round((r + m) * 255)}, ${Math.round((g + m) * 255)}, ${Math.round((b + m) * 255)})`;
+    }
+
+    function generatePalette(baseHue, type) {
+      const steps = {
+        complementary: [0, 180],
+        analogous: [-30, 0, 30],
+        triadic: [0, 120, 240],
+        tetradic: [0, 90, 180, 270],
+        split: [0, 150, 210],
+        monochromatic: [0, 0, 0, 0].map((_, i) => baseHue)
+      };
+
+      return steps[type].map(offset => {
+        let h = (baseHue + offset + 360) % 360;
+        return {
+          h,
+          hex: hslToHex(h, 100, 50),
+          rgb: hslToRgbStr(h, 100, 50)
+        };
+      });
+    }
+
+    function createColorBox(color) {
+      const div = document.createElement("div");
+      div.className = "color-box";
+      div.style.backgroundColor = color.hex;
+      div.innerHTML = `
+        <div class="color-label">${color.hex}</div>
+        <div class="color-label">${color.rgb}</div>
+        <div class="color-label">HSL(${color.h},100%,50%)</div>
+      `;
+      div.onclick = () => {
+        navigator.clipboard.writeText(color.hex);
+        showToast();
+      };
+      return div;
+    }
+
+    function showToast() {
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1500);
+    }
+
+    function handleClick(e) {
+      const x = e.offsetX - radius;
+      const y = e.offsetY - radius;
+      const angle = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+      const h = Math.round(angle);
+      showColor(h);
+    }
+
+    function showColor(hue) {
+      const preview = document.getElementById("preview");
+      const palette = document.getElementById("palette");
+      preview.innerHTML = "";
+      palette.innerHTML = "";
+
+      const picked = {
+        h: hue,
+        hex: hslToHex(hue, 100, 50),
+        rgb: hslToRgbStr(hue, 100, 50)
+      };
+      preview.appendChild(createColorBox(picked));
+
+      const colors = generatePalette(hue, mode.value);
+      colors.forEach(c => palette.appendChild(createColorBox(c)));
+    }
+
+    drawColorWheel();
+    canvas.addEventListener("click", handleClick);
+    mode.addEventListener("change", () => {
+      const boxes = document.getElementById("preview").querySelectorAll(".color-box");
+      if (boxes.length > 0) {
+        const h = parseInt(boxes[0].textContent.match(/HSL\((\d+)/)[1]);
+        showColor(h);
+      }
+    });
+  </script>
+</body>
+</html>

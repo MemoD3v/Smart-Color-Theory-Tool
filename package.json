@@ -1,0 +1,13 @@
+{
+  "name": "color-theory-tool",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-packager . ColorTheoryApp --platform=win32 --arch=x64 --overwrite"
+  },
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-packager": "^17.1.0"
+  }
+}
